@@ -1,4 +1,4 @@
-#include "sockets.h"
+#include "tests.h"
 #include <winsock2.h>
 #include <thread>
 #include <iostream>
@@ -6,9 +6,6 @@
 #include <sstream>
 #include <string>
 #include <cstring>
-#include <unordered_map>
-
-std::unordered_map<std::string , SOCKET> map_clients_sockets;
 
 int main(int argc, char *argv[])
 {
@@ -79,13 +76,10 @@ int main(int argc, char *argv[])
         port = std::stoi(buffer_port);
     }
 
-    if (num_nodes == 2) {
-        return 0;
-    }
-
-    if (num_nodes == 4) {
-        return 0;
-    }
+    if (num_nodes == 2)
+        test_two_nodes(is_server, server_IP, port);
+    else
+        test_four_nodes(is_server, server_IP, port);
 
     return 0;
 }

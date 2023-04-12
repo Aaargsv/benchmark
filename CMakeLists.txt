@@ -4,4 +4,4 @@ project(benchmark)
 set(CMAKE_CXX_STANDARD 14)
 
 include_directories(include)
-add_executable(benchmark src/benchmark.cpp src/sockets.cpp include/sockets.h)
+add_executable(benchmark src/benchmark.cpp src/sockets.cpp include/sockets.h src/tests.cpp include/tests.h)

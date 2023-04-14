@@ -18,8 +18,8 @@ int main(int argc, char *argv[])
 
     /**
      * [program] [2]
-     * [program] [2] [settings file name]
-     * [program] [2] [ip] [port]
+     * [program] [2] [-s/-c] [settings file name]
+     * [program] [2] [-s/-c] [ip] [port]
      * [program] [4] [-s/-c]
      * [program] [4] [-s/-c] [settings file name]
      * [program] [4] [-s/-c] [ip] [port]
@@ -77,9 +77,8 @@ int main(int argc, char *argv[])
     }
 
     if (num_nodes == 2)
-        test_two_nodes(is_server, server_IP, port);
-    else
-        test_four_nodes(is_server, server_IP, port);
+        test_two_nodes(is_server, server_IP, port, 1, 1024);
+    
 
     return 0;
 }

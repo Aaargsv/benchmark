@@ -5,7 +5,7 @@
 
 #include <winsock2.h>
 
-int establish_connection_with_node(SOCKET &socket, char *server_IP, int port);
-int open_server_connection(SOCKET &socket, char *server_IP, int port);
+int establish_connection_with_node(SOCKET &socket, char *server_IP, int port, int t_protocol);
+int open_server_connection(SOCKET &socket, char *server_IP, int port, int t_protocol);
 
 #endif

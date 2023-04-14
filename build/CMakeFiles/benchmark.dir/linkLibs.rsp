@@ -1,1 +1,0 @@
- C:/Users/Alexey/My/Files/Projects/StudyProjects/networking/benchmark/benchmark/common/trase/lib/libtrase.a -lws2_32 -static -static-libgcc -static-libstdc++ -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 

@@ -2,6 +2,7 @@
 #define STAT_H
 
 #define THRESHOLD 0.05
+#define SAMPLE_SIZE 10
 
 #include <vector>
 

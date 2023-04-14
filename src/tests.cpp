@@ -23,13 +23,14 @@ void generate_random_byte_array(char *buf, int len)
 int ping(SOCKET server_socket, int start_data_size, int end_data_size,
           std::vector<Mesurement> &mesurements)
 {
+
     std::vector<char> buffer(end_data_size);
  
     int data_size;
     for (data_size = start_data_size; data_size <= end_data_size; data_size++) {
         buffer[0] = PINGING;
         std::vector<double> durations;
-        int rep = 1000;
+        int sample_count = 0;
         while (true) {
             generate_random_byte_array(buffer.data() + 1, data_size - 1);
             auto t1 = std::chrono::high_resolution_clock::now();
@@ -51,19 +52,29 @@ int ping(SOCKET server_socket, int start_data_size, int end_data_size,
 
             auto t2 = std::chrono::high_resolution_clock::now();
 
+            //std::cout << std::chrono::duration<double>(t2 - t1).count() / 2 << std::endl;
+
             durations.push_back(std::chrono::duration<double>(t2 - t1).count() / 2);
             double avr =  average(durations, durations.size());
             double sigma = standard_deviation(durations, durations.size());
-            if (sigma <= THRESHOLD * avr)
-                break;   
-        }
+            sample_count++;
+            if (sample_count >= SAMPLE_SIZE) {
+                std::cout << "ov = " << sigma / avr << std::endl;
+                if (sigma <= THRESHOLD * avr)
+                    break;
+                break;
+            }
 
+        }
         Mesurement ms;
+        std::cout << "durations.size() " << durations.size() << std::endl;
         ms.avr_duration = average(durations, durations.size());
         ms.data_size = data_size;
         mesurements.push_back(ms);
-        buffer[0] = INCREMENT_DATA_SIZE;
-        send(server_socket, buffer.data(), data_size, 0);
+        if (data_size != end_data_size) {
+            buffer[0] = INCREMENT_DATA_SIZE;
+            send(server_socket, buffer.data(), data_size, 0);
+        }
     }
 
     buffer[0] = STOP_PING;
@@ -87,6 +98,7 @@ int pong(SOCKET client_socket, int start_data_size, int end_data_size)
 
         if (buffer[0] == INCREMENT_DATA_SIZE) {
             data_size++;
+            std::cout << data_size << std::endl;
             continue;
         }
             
@@ -160,5 +172,5 @@ int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_siz
 
 int test_four_nodes(bool is_server, char *server_IP, int port)
 {
-
+    return 0;
 }

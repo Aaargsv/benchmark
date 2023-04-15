@@ -3,6 +3,7 @@ project(benchmark_projects)
 
 set(CMAKE_CXX_STANDARD 14)
 
+
 add_library(trase STATIC IMPORTED)
 set_target_properties(trase PROPERTIES
         IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/common/trase/lib/libtrase.a)

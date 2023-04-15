@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
     }
 
     if (num_nodes == 2)
-        test_two_nodes(is_server, server_IP, port, 1, 1024);
+        test_two_nodes(is_server, server_IP, port, 1, 1024, SOCK_STREAM);
     
 
     return 0;

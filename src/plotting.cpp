@@ -5,10 +5,10 @@
 #include <vector>
 #include <string>
 
-int create_plot(std::vector<Mesurement> &ms, const std::string &plot_name, 
+int create_plot(std::vector<Measurement> &ms, const std::string &plot_name,
                 const std::string &x_label, const std::string &y_label) 
 {
-         /// create figure and axis
+    /// create figure and axis
     auto fig = trase::figure();
     auto ax = fig->axis();
 
@@ -18,7 +18,7 @@ int create_plot(std::vector<Mesurement> &ms, const std::string &plot_name,
     std::vector<double> y(n);
     for (int i = 0; i < n; ++i) {
         x[i] = ms[i].data_size;
-        y[i] = ms[i].avr_duration;
+        y[i] = ms[i].value;
     }
 
     /// create a trase dataset and then plot it using a line geometry
@@ -28,6 +28,14 @@ int create_plot(std::vector<Mesurement> &ms, const std::string &plot_name,
     /// label axis
     ax->xlabel(x_label.c_str());
     ax->ylabel(y_label.c_str());
+
+    auto max_measurement = std::max_element(ms.begin(), ms.end(), [](Measurement &a, Measurement &b)
+    {
+        return a.value < b.value;
+    });
+    double max_latency = max_measurement->value;
+    float ylimit = static_cast<float>(max_latency);
+    ax->ylim({0, ylimit });
 
     // output to chosen backend
     std::string file_name = plot_name + ".svg";

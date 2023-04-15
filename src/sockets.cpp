@@ -109,6 +109,9 @@ int open_server_connection(SOCKET &server_socket, char *server_IP, int port, int
         std::cout << "Binding socket to Server info is OK" << std::endl;
 
     //Starting to listen to any Clients
+    if (t_protocol == SOCK_DGRAM)
+        return 0;
+
     error_code = listen(server_socket, SOMAXCONN);
     if ( error_code != 0 ) {
         std::cerr << "[Error]: can't start to listen to. Error # ";
@@ -122,3 +125,4 @@ int open_server_connection(SOCKET &server_socket, char *server_IP, int port, int
     }
     return 0;
 }
+

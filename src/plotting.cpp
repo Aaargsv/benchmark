@@ -35,7 +35,7 @@ int create_plot(std::vector<Measurement> &ms, const std::string &plot_name,
     });
     double max_latency = max_measurement->value;
     float ylimit = static_cast<float>(max_latency);
-    ax->ylim({0, ylimit });
+    //ax->ylim({0, ylimit });
 
     // output to chosen backend
     std::string file_name = plot_name + ".svg";

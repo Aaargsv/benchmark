@@ -7,7 +7,9 @@
 #define PINGING 0x00
 #define STOP_PING 0x01
 #define INCREMENT_DATA_SIZE 0x02
-#define
+#define NEXT_STREAM 0x03
+#define STOP_STREAM 0x04
+#define BYTE_STEP 16
 
 extern std::unordered_map<std::string , SOCKET> map_clients_sockets;
 

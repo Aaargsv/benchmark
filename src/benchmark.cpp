@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
     std::string settings_file_name;
 
     /**
-     * [program] [2]
+     * [program] [2] [-s/-c]
      * [program] [2] [-s/-c] [settings file name]
      * [program] [2] [-s/-c] [ip] [port]
      * [program] [4] [-s/-c]

@@ -56,6 +56,6 @@ double calc_standard_deviation(std::vector<double> &data, int n)
 void print_measurements(std::vector<Measurement> &ms)
 {
     for (int i = 0; i < ms.size(); i++) {
-        std::cout << "delay: " << ms[i].value << " size: " << ms[i].data_size << std::endl;
+        std::cout << "latency: " << ms[i].value << " size: " << ms[i].data_size << std::endl;
     }
 }

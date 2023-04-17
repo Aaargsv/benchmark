@@ -203,6 +203,7 @@ int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_siz
     std::string prot = (t_protocol == SOCK_STREAM) ? "tcp": "udp";
     SocketExt server_socket;
     if (is_server) {
+
         if(set_server_socket(server_socket, server_IP, port, t_protocol)) {
             std::cerr << "[Error]: can't open server connection" << std::endl;
             return 1;
@@ -258,8 +259,47 @@ int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_siz
     return 0;
 }
 
-
+std::vector<SocketExt> vec_sockets;
 int test_four_nodes(bool is_server, char *server_IP, int port)
 {
+    int num_nodes = 4;
+    if (is_server) {
+        SocketExt server_socket;
+        if (set_server_socket(server_socket, server_IP, port, SOCK_STREAM)) {
+            std::cerr << "[Error]: can't open server connection" << std::endl;
+            return 1;
+        }
+
+        for (int i = 0; i < num_nodes; i++) {
+            SocketExt node_sock;
+            if (accept_connection(node_sock, server_socket, SOCK_STREAM)) {
+                std::cerr << "[Error]: can't accept connection" << std::endl;
+                return 1;
+            }
+            vec_sockets.push_back(node_sock);
+        }
+
+        int data_size = sizeof (sockaddr_in) + sizeof (char);
+        std::vector<char> buffer(data_size);
+        for (int i = 0; i < num_nodes; i++) {
+            for (int j = i + 1; j < num_nodes; j++) {
+                buffer[0] = IS_SERVER;
+                memcpy(buffer.data() + 1, &vec_sockets[j].sock_info, sizeof(vec_sockets[j].sock_info));
+                if (send_ext(vec_sockets[i], buffer.data(), data_size, SOCK_STREAM))
+                    return 1;
+                buffer[0] = IS_CLIENT;
+                memcpy(buffer.data() + 1, &vec_sockets[i].sock_info, sizeof(vec_sockets[j].sock_info));
+                if (send_ext(vec_sockets[j], buffer.data(), data_size, SOCK_STREAM))
+                    return 1;
+                if (receive_ext(vec_sockets[i], buffer.data(), 1, SOCK_STREAM)) {
+                    return 1;
+                }
+            }
+        }
+    } else {
+        SocketExt client_socket;
+        set_client_socket(client_socket, server_IP, port, SOCK_STREAM);
+    }
+
     return 0;
 }

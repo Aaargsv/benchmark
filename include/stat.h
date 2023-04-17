@@ -3,7 +3,7 @@
 
 #define THRESHOLD 0.2
 #define SAMPLE_SIZE 2
-#define CHECK_SAMPLE_SIZE 50
+#define CHECK_SAMPLE_SIZE 1000
 
 #include <vector>
 

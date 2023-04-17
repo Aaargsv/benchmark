@@ -22,8 +22,7 @@ int set_client_socket(SocketExt &client_socket, char *server_IP, int port, int t
         std::cerr << "[Error]: WinSock version initialization # ";
         std::cerr << WSAGetLastError() << std:: endl;
         return 1;
-    }
-    else
+    } else
         std::cout << "WinSock initialization is OK" << std::endl;
 
     client_socket.socket = socket(AF_INET, t_protocol, 0);
@@ -32,8 +31,7 @@ int set_client_socket(SocketExt &client_socket, char *server_IP, int port, int t
         std::cerr << WSAGetLastError() << std:: endl;
         closesocket(client_socket.socket);
         WSACleanup();
-    }
-    else
+    } else
         std::cout << "Client socket initialization is OK" << std::endl;
 
     sockaddr_in server_info;
@@ -54,19 +52,35 @@ int set_client_socket(SocketExt &client_socket, char *server_IP, int port, int t
         } else
             std::cout << "Connection established successfully" << std::endl;
     } else {
-        sockaddr_in client_info = {};
-        server_info.sin_family = AF_INET;
+        sockaddr_in client_info;
+        memset(&client_info, 0, sizeof(client_info));
+        client_info.sin_addr.s_addr = INADDR_ANY;
+        client_info.sin_family = AF_INET;
+        client_info.sin_port = htons(0);
         error_code = bind(client_socket.socket, reinterpret_cast<const sockaddr *>(&client_info), sizeof(client_info));
         if ( error_code != 0 ) {
             std::cerr << "[Error]: can't bind udp socket. Error: ";
-            std::cerr <<  WSAGetLastError() << std::endl;
+            std::cerr << WSAGetLastError() << std::endl;
             closesocket(client_socket.socket);
             WSACleanup();
-            return 1;
         }
+        char client_IP[32];
+        inet_ntop(AF_INET, &client_socket.sock_info.sin_addr, client_IP, INET_ADDRSTRLEN);	// Convert connected client's IP to standard string format
+        std::cout << "Client bind socket to IP address " << client_IP << std::endl;
+
+        client_socket.sock_info = server_info;
         char data = CONNECT_UDP;
         if (send_ext(client_socket, &data, 1, t_protocol))
             return 1;
+
+
+        if (receive_ext(client_socket, &data, 1, t_protocol))
+            return 1;
+        char get_IP[32];
+        inet_ntop(AF_INET, &client_socket.sock_info.sin_addr, get_IP, INET_ADDRSTRLEN);	// Convert connected client's IP to standard string format
+        std::cout << "Server sent data via udp with IP address " << get_IP << std::endl;
+        std::cout << "Data:  " << (int)data << std::endl;
+
     }
     return 0;
 }
@@ -91,8 +105,7 @@ int set_server_socket(SocketExt &server_socket, char *server_IP, int port, int t
         std::cerr << "[Error]: WinSock version initialization # ";
         std::cerr << WSAGetLastError() << std:: endl;
         return 1;
-    }
-    else
+    } else
         std::cout << "WinSock initialization is OK" << std::endl;
 
     // Server socket initialization
@@ -103,8 +116,7 @@ int set_server_socket(SocketExt &server_socket, char *server_IP, int port, int t
         closesocket(server_socket.socket);
         WSACleanup();
         return 1;
-    }
-    else
+    } else
         std::cout << "Server socket initialization is OK" << std::endl;
 
     // Server socket binding
@@ -121,8 +133,7 @@ int set_server_socket(SocketExt &server_socket, char *server_IP, int port, int t
         closesocket(server_socket.socket);
         WSACleanup();
         return 1;
-    }
-    else
+    } else
         std::cout << "Binding socket to Server info is OK" << std::endl;
 
 
@@ -137,8 +148,7 @@ int set_server_socket(SocketExt &server_socket, char *server_IP, int port, int t
         closesocket(server_socket.socket);
         WSACleanup();
         return 1;
-    }
-    else {
+    } else {
         std::cout << "Listening..." << std::endl;
     }
     return 0;
@@ -159,8 +169,7 @@ int accept_connection(SocketExt &client_socket, SocketExt &server_socket, int t_
             closesocket(client_socket.socket);
             WSACleanup();
             return 1;
-        }
-        else {
+        } else {
             std::cout << "Connection to a client established successfully" << std::endl;
             char client_IP[32];
             inet_ntop(AF_INET, &client_info.sin_addr, client_IP, INET_ADDRSTRLEN);	// Convert connected client's IP to standard string format
@@ -168,14 +177,23 @@ int accept_connection(SocketExt &client_socket, SocketExt &server_socket, int t_
         }
     } else {
         char data;
-        if (receive_ext(server_socket, &data, 1, t_protocol))
+        client_socket = server_socket;
+        if (receive_ext(client_socket, &data, 1, t_protocol))
             return 1;
+        char client_IP[32];
+        inet_ntop(AF_INET, &client_socket.sock_info.sin_addr, client_IP, INET_ADDRSTRLEN);	// Convert connected client's IP to standard string format
+        std::cout << "Client sent data via udp with IP address " << client_IP << std::endl;
+        std::cout << "Data:  " << (int)data << std::endl;
+
+        if (send_ext(client_socket, &data, 1, t_protocol)) {
+            return 1;
+        }
     }
 
     return 0;
 }
 
-int send_ext(SocketExt sock, char *buffer, int length, int trans_protocol)
+int send_ext(SocketExt &sock, char *buffer, int length, int trans_protocol)
 {
     int error_code;
     if (trans_protocol == SOCK_STREAM) {
@@ -196,21 +214,21 @@ int send_ext(SocketExt sock, char *buffer, int length, int trans_protocol)
         return 1;
     return 0;
 }
-int receive_ext(SocketExt sock, char *buffer, int length, int trans_protocol)
+int receive_ext(SocketExt &sock, char *buffer, int length, int trans_protocol)
 {
     int error_code;
-    int addr_size = sizeof(sock.sock_info);
     if (trans_protocol == SOCK_STREAM) {
         error_code= recv(sock.socket, buffer, length, 0);
         if (error_code == SOCKET_ERROR) {
-            std::cout << "[Error]: can't send" << std::endl;
+            std::cout << "[Error]: can't receive" << std::endl;
             std::cout << WSAGetLastError() << std::endl;
             return 1;
         }
     } else if (trans_protocol == SOCK_DGRAM) {
+        int addr_size = sizeof(sock.sock_info);
         error_code = recvfrom(sock.socket, buffer, length, 0, reinterpret_cast<sockaddr *> (&sock.sock_info), &addr_size);
         if (error_code == SOCKET_ERROR) {
-            std::cout << "[Error]: can't send" << std::endl;
+            std::cout << "[Error]: can't receive" << std::endl;
             std::cout << WSAGetLastError() << std::endl;
             return 1;
         }

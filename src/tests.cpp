@@ -31,7 +31,7 @@ int ping(SocketExt server_socket, int start_data_size, int end_data_size, int tr
         buffer[0] = PINGING;
 
         double latency;
-        double mean;
+        double mean = 0;
         double m2;
         int sample_count = 0;
         double standard_error;
@@ -40,7 +40,7 @@ int ping(SocketExt server_socket, int start_data_size, int end_data_size, int tr
 
         generate_random_byte_array(buffer.data() + 1, data_size - 1);
         while (true) {
-
+            assert(data_size <= end_data_size);
             auto t1 = std::chrono::steady_clock::now();
 
             if (send_ext(server_socket, buffer.data(), data_size, trans_protocol))
@@ -69,13 +69,13 @@ int ping(SocketExt server_socket, int start_data_size, int end_data_size, int tr
         measurements.push_back(ms);
         if (data_size + BYTE_STEP < end_data_size) {
             buffer[0] = INCREMENT_DATA_SIZE;
-            if (send_ext(server_socket, buffer.data(), data_size, trans_protocol))
+            if (send_ext(server_socket, buffer.data(), 1, trans_protocol))
                 return 1;
         }
     }
 
     buffer[0] = STOP_PING;
-    if (send_ext(server_socket, buffer.data(), data_size, trans_protocol))
+    if (send_ext(server_socket, buffer.data(), 1, trans_protocol))
         return 1;
     return 0;
 }
@@ -86,7 +86,7 @@ int pong(SocketExt client_socket, int start_data_size, int end_data_size, int tr
     int error_code;
     int data_size = start_data_size;
     while (true) {
-
+        assert(data_size <= end_data_size);
         if (receive_ext(client_socket, buffer.data(), data_size, trans_protocol))
             return 1;
 
@@ -113,13 +113,14 @@ int stream_receive(SocketExt server_socket, int start_data_size, int end_data_si
     for (data_size = start_data_size; data_size <= end_data_size; data_size += BYTE_STEP) {
         double time;
         double bandwidth;
-        double mean;
+        double mean = 0;
         double m2;
         int sample_count = 0;
         double sigma;
-        double prev_mean;
+        double prev_mean = 0;
 
         while (true) {
+            assert(data_size <= end_data_size);
             auto t1 = std::chrono::steady_clock::now();
             if (receive_ext(server_socket, buffer.data(), data_size, trans_protocol))
                 return 1;
@@ -128,10 +129,6 @@ int stream_receive(SocketExt server_socket, int start_data_size, int end_data_si
             time = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
             bandwidth = data_size / time;
             update_parameters_online(mean, m2, sample_count, bandwidth);
-            sigma = calc_sd_online(m2, sample_count);
-
-            if (sample_count >= SAMPLE_SIZE && sigma * THRESHOLD < abs(bandwidth - mean))
-                break;
 
             if (sample_count >= SAMPLE_SIZE && sample_count % CHECK_SAMPLE_SIZE == 0) {
                 sigma = calc_sd_online(m2, sample_count);
@@ -140,7 +137,7 @@ int stream_receive(SocketExt server_socket, int start_data_size, int end_data_si
                 prev_mean = mean;
             }
             buffer[0] = NEXT_STREAM;
-            if (send_ext(server_socket, buffer.data(), data_size, trans_protocol))
+            if (send_ext(server_socket, buffer.data(), 1, trans_protocol))
                 return 1;
         }
 
@@ -148,15 +145,15 @@ int stream_receive(SocketExt server_socket, int start_data_size, int end_data_si
         ms.value = mean * 1e9 / 125000;
         ms.data_size = data_size;
         measurements.push_back(ms);
-        if (data_size + BYTE_STEP < end_data_size) {
+        if (data_size + BYTE_STEP <= end_data_size) {
             buffer[0] = INCREMENT_DATA_SIZE;
-            if (send_ext(server_socket, buffer.data(), data_size, trans_protocol))
+            if (send_ext(server_socket, buffer.data(), 1, trans_protocol))
                 return 1;
         }
     }
 
     buffer[0] = STOP_STREAM;
-    if (send_ext(server_socket, buffer.data(), data_size, trans_protocol))
+    if (send_ext(server_socket, buffer.data(), 1, trans_protocol))
         return 1;
     return 0;
 }
@@ -169,14 +166,14 @@ int stream_send(SocketExt client_socket, int start_data_size, int end_data_size,
     int data_size = start_data_size;
     char command;
     generate_random_byte_array(buffer.data(), data_size);
-    while (true) {
+    while (data_size <= end_data_size) {
 
-        assert(data_size > end_data_size);
+        assert(data_size <= end_data_size);
 
         if (send_ext(client_socket, buffer.data(), data_size, trans_protocol))
             return 1;
 
-        if (receive_ext(client_socket, buffer.data(), data_size, trans_protocol))
+        if (receive_ext(client_socket, &command, 1, trans_protocol))
             return 1;
 
         if (command == NEXT_STREAM)
@@ -192,6 +189,7 @@ int stream_send(SocketExt client_socket, int start_data_size, int end_data_size,
         if (command == STOP_STREAM)
             return 0;
     }
+    return 0;
 }
 
 
@@ -202,7 +200,7 @@ int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_siz
         std::cout << "[Error]: start_data_size >= end_data_size" << std::endl;
         return 1;
     }
-
+    std::string prot = (t_protocol == SOCK_STREAM) ? "tcp": "udp";
     SocketExt server_socket;
     if (is_server) {
         if(set_server_socket(server_socket, server_IP, port, t_protocol)) {
@@ -216,6 +214,7 @@ int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_siz
             return 1;
         }
 
+
         if (pong(client_socket, start_data_size, end_data_size, t_protocol)) {
             std::cerr << "[Error]: can't pong" << std::endl;
             return 1;
@@ -228,7 +227,7 @@ int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_siz
 
     } else {
         if(set_client_socket(server_socket, server_IP, port, t_protocol)) {
-            std::cerr << "[Error]: can't establish connection with node" << std::endl;
+            std::cerr << "[Error]: can't set client socket" << std::endl;
             return 1;
         }
         std::vector<Measurement> measurements_ping_pong;
@@ -246,12 +245,12 @@ int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_siz
             return 1;
         }
         
-        if (create_plot(measurements_ping_pong, "ping-pong", "packet size (byte)", "delay (ms)")) {
+        if (create_plot(measurements_ping_pong, "ping-pong-" + prot, "packet size (byte)", "delay (ms)")) {
             std::cerr << "[Error]: can't plot" << std::endl;
             return 1;
         }
 
-        if (create_plot(measurements_stream, "stream", "packet size (byte)", "bandwidth (Mbps)")) {
+        if (create_plot(measurements_stream, "stream-" + prot, "packet size (byte)", "bandwidth (Mbps)")) {
            std::cerr << "[Error]: can't plot" << std::endl;
            return 1;
         }

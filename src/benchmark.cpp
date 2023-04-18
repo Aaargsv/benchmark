@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
     if (num_nodes == 2)
         test_two_nodes(is_server, server_IP, port, 1, 1024, trans_protocol);
     if (num_nodes == 4)
-        test_multiple_nodes_stream(2, is_server, server_IP, port, 1, 1024, trans_protocol );
+        test_multiple_nodes_stream(4, is_server, server_IP, port, 1, 1024, trans_protocol );
 
     return 0;
 }

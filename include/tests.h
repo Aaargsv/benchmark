@@ -18,7 +18,7 @@
 #define IS_CONNECTED 0x02
 
 
-static std::vector<SocketExt> vec_sockets;
+
 
 int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_size, int end_data_size, int t_protocol);
 int test_four_nodes(bool is_server, char *server_IP, int port);

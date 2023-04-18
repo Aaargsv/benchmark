@@ -203,16 +203,15 @@ int get_socket_index(std::vector<SocketExt> &vs, SOCKET sock)
     return -1;
 }
 
-int multiple_stream_receive(fd_set recv_set, int max_socket_num, int start_data_size, int end_data_size,
-                            int trans_protocol, int num_node, std::vector<std::vector<Measurement>> &node_mes)
+int multiple_stream_receive(std::vector<SocketExt> &vec_sockets, fd_set recv_set, int max_socket_num, int start_data_size, int end_data_size,
+                            int trans_protocol, int num_nodes, std::vector<std::vector<Measurement>> &node_mes)
 {
 
     std::vector<char> buffer(end_data_size);
     int error_code;
-    std::vector<int> data_size(num_node, start_data_size);
+    std::vector<int> data_size(num_nodes, start_data_size);
     fd_set temp_recv_set;
     memcpy(&temp_recv_set, &recv_set, sizeof (fd_set));
-
 
     struct StatValues {
         double time = 0;
@@ -225,32 +224,33 @@ int multiple_stream_receive(fd_set recv_set, int max_socket_num, int start_data_
         int is_next_size = 0;
     };
 
-    std::vector<StatValues> vec_stat(num_node);
+    std::vector<StatValues> vec_stat(num_nodes);
     while (true) {
-        for (int i = 0; i < num_node; i++) {
+        for (int i = 0; i < num_nodes; i++) {
             if (vec_stat[i].is_next_size) {
                 data_size[i] += BYTE_STEP;
+                vec_stat[i].is_next_size = 0;
                 memset(&vec_stat[i], 0, sizeof (StatValues));
             }
         }
+
         bool is_finished = true;
-        for (int i = 0; i < num_node; i++) {
+        for (int i = 0; i < num_nodes; i++) {
             if (data_size[i] <= end_data_size) {
                 is_finished = false;
             }
         }
         if (is_finished)
             break;
-        error_code = select(max_socket_num, &recv_set, NULL, NULL, NULL);
+        error_code = select(max_socket_num, &recv_set, NULL, NULL, NULL); /****/
         if (error_code < 0) {
             std::cerr << "[Error]: can't select" << std::endl;
             return 1;
         }
-        for (int i = 0; i < max_socket_num; i++) {
-            if (FD_ISSET(i, &recv_set)) {
-                SOCKET hit_socket = recv_set.fd_array[i];
-                int index = get_socket_index(vec_sockets, hit_socket);
-                if (data_size[i] > end_data_size)
+        for (int i = 0; i < num_nodes; i++) {
+            if (FD_ISSET(vec_sockets[i].socket, &recv_set)) {
+                int index = i;
+                if (data_size[index] > end_data_size)
                     continue;
 
                 auto t1 = std::chrono::steady_clock::now();
@@ -260,8 +260,12 @@ int multiple_stream_receive(fd_set recv_set, int max_socket_num, int start_data_
                 vec_stat[index].time = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
                 vec_stat[index].bandwidth = data_size[index] / vec_stat[index].time;
                 update_parameters_online(vec_stat[index].mean, vec_stat[index].m2, vec_stat[index].sample_count, vec_stat[index].bandwidth);
-
                 if (vec_stat[index].sample_count >= SAMPLE_SIZE && vec_stat[index].sample_count % CHECK_SAMPLE_SIZE == 0) {
+
+                    double standard_error = calc_standard_error_online(vec_stat[index].m2, vec_stat[index].sample_count);
+                    std::cout << "s / m = " << standard_error /  vec_stat[index].mean << std::endl;
+
+
                     vec_stat[index].sigma = calc_sd_online(vec_stat[index].m2, vec_stat[index].sample_count);
                     if (vec_stat[index].sigma * THRESHOLD < abs(vec_stat[index].prev_mean - vec_stat[index].mean)) {
                         Measurement ms;
@@ -272,17 +276,59 @@ int multiple_stream_receive(fd_set recv_set, int max_socket_num, int start_data_
                         buffer[0] = INCREMENT_DATA_SIZE;
                         if (send_ext(vec_sockets[index], buffer.data(), 1, trans_protocol))
                             return 1;
+                        continue;
                     }
 
                     vec_stat[index].prev_mean = vec_stat[index].mean;
                 }
+                buffer[0] = NEXT_STREAM;
+                if (send_ext(vec_sockets[index], buffer.data(), 1, trans_protocol))
+                    return 1;
             }
         }
         memcpy(&recv_set, &temp_recv_set, sizeof (fd_set));
     }
+
     return 0;
 }
 
+int multiple_stream_send(std::vector<SocketExt> &vec_socket, int num_nodes, int start_data_size,
+                         int end_data_size, int trans_protocol)
+{
+    std::vector<char> buffer(end_data_size);
+    generate_random_byte_array(buffer.data(), end_data_size);
+    std::vector<int> data_size(num_nodes, start_data_size);
+    char command;
+
+    while (true) {
+        bool is_finished = true;
+        for (int i = 0; i < num_nodes;  i++) {
+            if (data_size[i] <= end_data_size) {
+                is_finished = false;
+                break;
+            }
+        }
+        if (is_finished)
+            break;
+
+        int index = rand() % num_nodes;
+
+        if (data_size[index] > end_data_size)
+            continue;
+        SocketExt rand_sock = vec_socket[index];
+        if (send_ext(rand_sock, buffer.data(), data_size[index], trans_protocol))
+            return 1;
+        if (receive_ext(rand_sock, &command, 1 , trans_protocol))
+            return 1;
+        if (command == NEXT_STREAM)
+            continue;
+        if (command == INCREMENT_DATA_SIZE) {
+            data_size[index] += BYTE_STEP;
+            //std::cout << "send stream: " << data_size[index] << std::endl;
+        }
+    }
+    return 0;
+}
 
 int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_size, int end_data_size, int t_protocol)
 {
@@ -354,6 +400,7 @@ int test_two_nodes(bool is_server, char *server_IP, int port, int start_data_siz
 int test_multiple_nodes_stream(int num_nodes, bool is_server, char *server_IP, int port,
                                int start_data_size, int end_data_size, int t_protocol)
 {
+    static std::vector<SocketExt> vec_sockets;
     if (is_server) {
         SocketExt server_socket;
         if (set_server_socket(server_socket, server_IP, port, SOCK_STREAM)) {
@@ -427,24 +474,27 @@ int test_multiple_nodes_stream(int num_nodes, bool is_server, char *server_IP, i
         vec_sockets.push_back(server_socket);
     }
 
-
-    std::vector<std::thread> th_stream_receive;
-    std::vector<std::thread> th_stream_send;
+    fd_set recv_set;
+    FD_ZERO(&recv_set);
+    for (int i = 0; i < num_nodes - 1; i++) {
+        FD_SET(vec_sockets[i].socket, &recv_set);
+    }
+    int max_socket_num = 0;
+    for (int i = 0; i < num_nodes - 1; i++) {
+        if (vec_sockets[i].socket > max_socket_num)
+            max_socket_num = vec_sockets[i].socket;
+    }
+    max_socket_num++;
     std::vector<std::vector<Measurement>> node_ms(num_nodes - 1);
+    std::thread th_receive(multiple_stream_receive, std::ref(vec_sockets), recv_set,
+                           max_socket_num, start_data_size, end_data_size,
+                           t_protocol, num_nodes - 1, std::ref(node_ms));
 
-    for (int i = 0; i < num_nodes - 1; i++) {
-        th_stream_receive.push_back(
-                std::thread(stream_receive, vec_sockets[i], start_data_size, end_data_size, SOCK_STREAM, std::ref(node_ms[i]))
-        );
-        th_stream_send.push_back(
-                std::thread(stream_send, vec_sockets[i], start_data_size, end_data_size, SOCK_STREAM)
-        );
-    }
+    std::thread th_send(multiple_stream_send, std::ref(vec_sockets), num_nodes - 1,
+                        start_data_size, end_data_size, t_protocol);
 
-    for (int i = 0; i < num_nodes - 1; i++) {
-        th_stream_send[i].join();
-        th_stream_receive[i].join();
-    }
+    th_receive.join();
+    th_send.join();
 
     std::string ip;
     std::string plot_name;

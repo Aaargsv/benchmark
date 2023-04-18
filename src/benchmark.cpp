@@ -1,4 +1,5 @@
 #include "tests.h"
+#include "sockets.h"
 #include <winsock2.h>
 #include <iostream>
 #include <fstream>
@@ -19,7 +20,7 @@ int main(int argc, char *argv[])
      * [program] [2] [-s/-c] [-tcp/-udp]
      * [program] [2] [-s/-c] [-tcp/-udp] [settings file name]
      * [program] [2] [-s/-c] [-tcp/-udp] [ip] [port]
-     * [program] [4] [-s/-c]
+     * [program] [4] [-s/-c] [-tcp/-udp]
      * [program] [4] [-s/-c] [-tcp/-udp] [settings file name]
      * [program] [4] [-s/-c] [-tcp/-udp] [ip] [port]
      */
@@ -84,8 +85,13 @@ int main(int argc, char *argv[])
         port = std::stoi(buffer_port);
     }
 
+    if(win_sock_init())
+        return 1;
+
     if (num_nodes == 2)
         test_two_nodes(is_server, server_IP, port, 1, 1024, trans_protocol);
+    if (num_nodes == 4)
+        test_multiple_nodes_stream(2, is_server, server_IP, port, 1, 1024, trans_protocol );
 
     return 0;
 }
